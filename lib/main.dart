@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'register.dart'; // Importa tu página de registro
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // <-- Esto es clave
   runApp(const MyApp());
 }
 
@@ -49,6 +51,11 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: const LoginPage(),
+      routes: {
+        '/register': (context) => RegisterPage(),
+        '/login': (context) => LoginPage(),
+        '/home': (context) => AccountPage(),
+      },
     );
   }
 }
@@ -157,7 +164,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 16),
                 TextButton(
                   onPressed: () {
-                    // Navegar a la página de registro
+                    Navigator.pushNamed(context, '/register'); // Navega a registro
                   },
                   child: const Text("¿No tienes cuenta? Regístrate aquí"),
                 ),
