@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'register.dart';
+import 'account.dart'; // Importa la pantalla principal
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter(); // Inicializa Hive
+  await Hive.openBox('usuarios'); // Abre la caja de usuarios
   runApp(const MyApp());
 }
 
@@ -49,6 +55,10 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: const LoginPage(),
+      routes: {
+        '/register': (context) => RegisterPage(),
+        '/home': (context) => const AccountPage(), // Aquí conectas la pantalla principal
+      },
     );
   }
 }
@@ -66,19 +76,15 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   String? _error;
 
-  void _login() {
-    // Simulación de autenticación
-    setState(() {
-      if (_emailController.text == "usuario" && _passwordController.text == "contraseña") {
-        _error = null;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const AccountPage()),
-        );
-      } else {
-        _error = "Usuario o contraseña incorrectos.";
-      }
-    });
+  void _login() async {
+    bool valido = await validarUsuario(_emailController.text, _passwordController.text);
+    if (valido) {
+      Navigator.of(context).pushReplacementNamed('/home');
+    } else {
+      setState(() {
+        _error = 'Usuario o contraseña incorrectos';
+      });
+    }
   }
 
   @override
@@ -157,7 +163,10 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 16),
                 TextButton(
                   onPressed: () {
-                    // Navegar a la página de registro
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => RegisterPage()),
+                    );
                   },
                   child: const Text("¿No tienes cuenta? Regístrate aquí"),
                 ),
@@ -264,4 +273,21 @@ class EmotionRegistrationPage extends StatelessWidget {
       ),
     );
   }
+}
+
+// Puedes poner esto en cualquier archivo donde necesites leer usuarios
+Future<List<Map>> obtenerUsuarios() async {
+  var box = Hive.box('usuarios');
+  return box.values.cast<Map>().toList();
+}
+
+// Puedes poner esta función en main.dart o donde manejes el login
+Future<bool> validarUsuario(String apodo, String contrasena) async {
+  var box = Hive.box('usuarios');
+  for (var usuario in box.values) {
+    if (usuario['apodo'] == apodo && usuario['contrasena'] == contrasena) {
+      return true; // Usuario y contraseña correctos
+    }
+  }
+  return false; // No coincide
 }
