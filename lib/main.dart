@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'register.dart';
 import 'account.dart'; // Importa la pantalla principal
+import 'new_entry.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -237,8 +238,13 @@ class ActivityRegistrationPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ElevatedButton(
-        onPressed: () {
-          // Lógica para registrar actividades
+        onPressed: () async {
+          final result = await Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const NewEntryPage(userId: 1),
+          ));
+          if (result == true) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Actividad guardada')));
+          }
         },
         child: const Text("Registrar Actividad"),
       ),
