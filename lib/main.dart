@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'register.dart';
 import 'account.dart'; // Importa la pantalla principal
-import 'new_entry.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -181,105 +180,7 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 // Página de Cuenta con navegación entre pestañas
-class AccountPage extends StatefulWidget {
-  const AccountPage({super.key});
-
-  @override
-  State<AccountPage> createState() => _AccountPageState();
-}
-
-class _AccountPageState extends State<AccountPage> {
-  int _selectedIndex = 0;
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Mi Cuenta"),
-      ),
-      body: _selectedIndex == 0
-          ? const ActivityRegistrationPage()
-          : _selectedIndex == 1
-              ? const CalendarPage()
-              : const EmotionRegistrationPage(),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle),
-            label: 'Registrar Actividades',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: 'Calendario',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.face),
-            label: 'Registrar Emociones',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Página para registrar actividades
-class ActivityRegistrationPage extends StatelessWidget {
-  const ActivityRegistrationPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ElevatedButton(
-        onPressed: () async {
-          final result = await Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => const NewEntryPage(userId: 1),
-          ));
-          if (result == true) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Actividad guardada')));
-          }
-        },
-        child: const Text("Registrar Actividad"),
-      ),
-    );
-  }
-}
-
-// Página de calendario
-class CalendarPage extends StatelessWidget {
-  const CalendarPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text("Aquí va el Calendario"),
-    );
-  }
-}
-
-// Página para registrar emociones
-class EmotionRegistrationPage extends StatelessWidget {
-  const EmotionRegistrationPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ElevatedButton(
-        onPressed: () {
-          // Lógica para registrar emociones
-        },
-        child: const Text("Registrar Emoción"),
-      ),
-    );
-  }
-}
+// AccountPage and related UI are provided in `account.dart`.
 
 // Puedes poner esto en cualquier archivo donde necesites leer usuarios
 Future<List<Map>> obtenerUsuarios() async {

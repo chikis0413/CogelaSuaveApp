@@ -149,4 +149,36 @@ class DBHelper {
     final dbClient = await db;
     return await dbClient.query('eventos', where: 'user_id = ?', whereArgs: [userId]);
   }
+
+  // Convenience: insertar actividad (wrapper)
+  static Future<int> insertActividad({required int userId, required String nombre, String? fecha, String? hora, String? descripcion, int? color, String? tag}) async {
+    final entry = {
+      'event_id': null,
+      'user_id': userId,
+      'nombre': nombre,
+      'fecha': fecha ?? '',
+      'hora': hora ?? '',
+      'descripcion': descripcion ?? '',
+      'color': color ?? 0xFF2196F3,
+      'tag': tag,
+    };
+    return await insertEventEntry(entry);
+  }
+
+  // Convenience: insertar emocion
+  static Future<int> insertEmocion({required int userId, required String emocion, required int intensidad, String? notas, int? color}) async {
+    final now = DateTime.now();
+    final hora = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final entry = {
+      'event_id': null,
+      'user_id': userId,
+      'nombre': 'Emoción: $emocion',
+      'fecha': now.toIso8601String().split('T').first,
+      'hora': hora,
+      'descripcion': 'Intensidad: $intensidad\nNotas: ${notas ?? ''}',
+      'color': color ?? 0xFFE91E63,
+      'tag': 'emocion',
+    };
+    return await insertEventEntry(entry);
+  }
 }
