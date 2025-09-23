@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
+import 'main.dart';
 
 class RegisterPage extends StatefulWidget {
   @override
@@ -257,7 +258,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       const Text('¿Ya tienes una cuenta?'),
                       TextButton(
                         onPressed: () {
-                          Navigator.of(context).pushReplacementNamed('/login');
+                          Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginPage()));
                         },
                         child: const Text(
                           'Inicia sesión',
