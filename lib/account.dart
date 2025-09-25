@@ -15,6 +15,37 @@ class _AccountPageState extends State<AccountPage> {
   int _selectedIndex = 0;
   
   final int _userId = 1; // Replace with real logged-in user id
+  String? _displayName;
+  bool _loadingDisplayName = true;
+  String? _apodo;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDisplayName();
+  }
+
+  Future<void> _loadDisplayName() async {
+    try {
+      final name = await DBHelper.getDisplayName(_userId);
+      String? nickname;
+      if (name == null) {
+        nickname = await DBHelper.getApodo(_userId);
+      }
+      setState(() {
+        _displayName = name;
+        _apodo = nickname;
+        _loadingDisplayName = false;
+      });
+    } catch (e) {
+      // ignore: avoid_print
+      print('Error loading display name: $e');
+      setState(() {
+        _displayName = null;
+        _loadingDisplayName = false;
+      });
+    }
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -26,43 +57,38 @@ class _AccountPageState extends State<AccountPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Mi Cuenta"),
+        // If you have a user name available from auth or DB, replace the hardcoded value below.
+        title: Row(
+          children: [
+            const Text('Mi Cuenta'),
+            const SizedBox(width: 12),
+            // Show the real user's name when available
+            if (_loadingDisplayName) const SizedBox(width: 12, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+            else if (_displayName != null) Text('— ${_displayName!}', style: const TextStyle(fontSize: 14))
+            else if (_apodo != null) Text('— ${_apodo!}', style: const TextStyle(fontSize: 14)),
+          ],
+        ),
+        actions: [
+          // Logout button on the right
+          IconButton(
+            tooltip: 'Salir',
+            icon: const Icon(Icons.exit_to_app),
+            onPressed: () {
+              // Replace with real logout logic if you have auth (clear tokens, session, etc.).
+              // Navigate to the login screen and remove all previous routes.
+              Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sesión cerrada')));
+            },
+          ),
+        ],
       ),
       body: _selectedIndex == 0
           ? ActivityRegistrationPage(userId: _userId)
           : _selectedIndex == 1
             ? CalendarPageWidget(userId: _userId)
             : EmotionRegistrationPage(userId: _userId, onSaved: () => setState(() {})),
-      floatingActionButton: _selectedIndex == 0
-          ? FloatingActionButton(
-              onPressed: () async {
-                final result = await Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: const Text('Registrar Actividad')),
-                    body: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: SingleChildScrollView(child: ActivityEntryForm(userId: _userId)),
-                    ),
-                  ),
-                ));
-                // refresh the page to reload tags and history
-                setState(() {});
-                if (result == true) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Actividad guardada')));
-                }
-              },
-              child: const Icon(Icons.add),
-            )
-          : _selectedIndex == 2
-              ? FloatingActionButton(
-                  onPressed: () {
-                    // Scroll to top or open the embedded form's save action
-                    // For simplicity, open the emotion form as a full page modal
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => EmotionRegistrationPage(userId: _userId, onSaved: () => setState(() {}))));
-                  },
-                  child: const Icon(Icons.add),
-                )
-              : null,
+      // No floating action button: remove the '+' button per request
+      floatingActionButton: null,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,

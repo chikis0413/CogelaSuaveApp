@@ -93,6 +93,32 @@ class DBHelper {
     return await dbClient.query('usuarios');
   }
 
+  // Obtener nombre para mostrar del usuario por id
+  static Future<String?> getDisplayName(int userId) async {
+    final dbClient = await db;
+    final rows = await dbClient.query('usuarios', where: 'id = ?', whereArgs: [userId], limit: 1);
+    if (rows.isEmpty) return null;
+    final row = rows.first;
+    final nombre = (row['nombre'] as String?)?.trim();
+    final apellido = (row['apellido'] as String?)?.trim();
+    final apodo = (row['apodo'] as String?)?.trim();
+    final email = (row['email'] as String?)?.trim();
+    if (nombre != null && nombre.isNotEmpty) {
+      if (apellido != null && apellido.isNotEmpty) return '$nombre $apellido';
+      return nombre;
+    }
+    if (apodo != null && apodo.isNotEmpty) return apodo;
+    return email;
+  }
+
+  // Obtener solo el apodo (nickname) del usuario
+  static Future<String?> getApodo(int userId) async {
+    final dbClient = await db;
+    final rows = await dbClient.query('usuarios', where: 'id = ?', whereArgs: [userId], columns: ['apodo'], limit: 1);
+    if (rows.isEmpty) return null;
+    return (rows.first['apodo'] as String?)?.trim();
+  }
+
   // Insertar evento
   static Future<int> insertEvento(Map<String, dynamic> evento) async {
     final dbClient = await db;

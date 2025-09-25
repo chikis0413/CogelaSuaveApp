@@ -58,6 +58,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/register': (context) => RegisterPage(),
         '/home': (context) => const AccountPage(), // Aquí conectas la pantalla principal
+        '/login': (context) => const LoginPage(),
       },
     );
   }
