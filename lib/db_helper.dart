@@ -1,179 +1,152 @@
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import 'Config/api.dart';
 
 class DBHelper {
-  static Database? _db;
+  // Nota: Aunque el nombre del archivo y la clase siguen siendo `DBHelper`,
+  // ahora funciona como cliente HTTP hacia el backend. Mantengo las mismas
+  // firmas públicas mínimas para que el resto de la app cambie poco.
 
-  static Future<Database> get db async {
-    if (_db != null) return _db!;
-    _db = await initDb();
-    return _db!;
-  }
-
-  static Future<Database> initDb() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'cogela_suave.db');
-    return await openDatabase(
-      path,
-      version: 3,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            apodo TEXT,
-            contrasena TEXT,
-            email TEXT,
-            nombre TEXT,
-            apellido TEXT,
-            fecha_nacimiento TEXT,
-            carrera TEXT,
-            descripcion_personal TEXT
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE eventos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            titulo TEXT,
-            fecha TEXT,
-            color INTEGER
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE event_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_id INTEGER,
-            user_id INTEGER,
-            nombre TEXT,
-            fecha TEXT,
-            hora TEXT,
-            descripcion TEXT,
-            color INTEGER,
-            tag TEXT
-          )
-        ''');
-      },
-      onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 2) {
-          await db.execute('''
-            CREATE TABLE event_entries (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              event_id INTEGER,
-              user_id INTEGER,
-              nombre TEXT,
-              fecha TEXT,
-              hora TEXT,
-              descripcion TEXT,
-              color INTEGER
-            )
-          ''');
-          oldVersion = 2;
-        }
-        if (oldVersion < 3) {
-          // Add tag column to event_entries for categorization
-          try {
-            await db.execute('ALTER TABLE event_entries ADD COLUMN tag TEXT');
-          } catch (e) {
-            // If ALTER TABLE fails (older sqlite versions), ignore; table will have tag on fresh installs
-          }
-        }
-      },
-    );
-  }
-
-  // Insertar usuario
+  // Insertar usuario -> POST /users (o endpoint apropiado)
   static Future<int> insertUsuario(Map<String, dynamic> usuario) async {
-    final dbClient = await db;
-    return await dbClient.insert('usuarios', usuario);
-  }
-
-  // Obtener todos los usuarios
-  static Future<List<Map<String, dynamic>>> getUsuarios() async {
-    final dbClient = await db;
-    return await dbClient.query('usuarios');
-  }
-
-  // Obtener nombre para mostrar del usuario por id
-  static Future<String?> getDisplayName(int userId) async {
-    final dbClient = await db;
-    final rows = await dbClient.query('usuarios', where: 'id = ?', whereArgs: [userId], limit: 1);
-    if (rows.isEmpty) return null;
-    final row = rows.first;
-    final nombre = (row['nombre'] as String?)?.trim();
-    final apellido = (row['apellido'] as String?)?.trim();
-    final apodo = (row['apodo'] as String?)?.trim();
-    final email = (row['email'] as String?)?.trim();
-    if (nombre != null && nombre.isNotEmpty) {
-      if (apellido != null && apellido.isNotEmpty) return '$nombre $apellido';
-      return nombre;
+    final uri = Uri.parse('${ApiConfig.baseUrl}/users');
+    final resp = await http
+        .post(uri, headers: ApiConfig.defaultHeaders, body: jsonEncode(usuario))
+        .timeout(ApiConfig.requestTimeout);
+    if (resp.statusCode == 201 || resp.statusCode == 200) {
+      final body = jsonDecode(resp.body);
+      // asumir que backend devuelve {"id": 123, ...}
+      return body['id'] as int? ?? 0;
     }
-    if (apodo != null && apodo.isNotEmpty) return apodo;
-    return email;
+    throw Exception('Failed to insert usuario: ${resp.statusCode} ${resp.body}');
+  }
+
+  // Obtener todos los usuarios -> GET /users
+  static Future<List<Map<String, dynamic>>> getUsuarios() async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/users');
+    final resp = await http
+        .get(uri, headers: ApiConfig.defaultHeaders)
+        .timeout(ApiConfig.requestTimeout);
+    if (resp.statusCode == 200) {
+      final body = jsonDecode(resp.body) as List<dynamic>;
+      return body.cast<Map<String, dynamic>>();
+    }
+    throw Exception('Failed to get usuarios: ${resp.statusCode} ${resp.body}');
+  }
+
+  // Obtener nombre para mostrar del usuario por id -> GET /users/{id}
+  static Future<String?> getDisplayName(int userId) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/users/$userId');
+    final resp = await http
+        .get(uri, headers: ApiConfig.defaultHeaders)
+        .timeout(ApiConfig.requestTimeout);
+    if (resp.statusCode == 200) {
+      final row = jsonDecode(resp.body) as Map<String, dynamic>;
+      final nombre = (row['nombre'] as String?)?.trim();
+      final apellido = (row['apellido'] as String?)?.trim();
+      final apodo = (row['apodo'] as String?)?.trim();
+      final email = (row['email'] as String?)?.trim();
+      if (nombre != null && nombre.isNotEmpty) {
+        if (apellido != null && apellido.isNotEmpty) return '$nombre $apellido';
+        return nombre;
+      }
+      if (apodo != null && apodo.isNotEmpty) return apodo;
+      return email;
+    }
+    return null;
   }
 
   // Obtener solo el apodo (nickname) del usuario
   static Future<String?> getApodo(int userId) async {
-    final dbClient = await db;
-    final rows = await dbClient.query('usuarios', where: 'id = ?', whereArgs: [userId], columns: ['apodo'], limit: 1);
-    if (rows.isEmpty) return null;
-    return (rows.first['apodo'] as String?)?.trim();
-  }
-
-  // Insertar evento
-  static Future<int> insertEvento(Map<String, dynamic> evento) async {
-    final dbClient = await db;
-    return await dbClient.insert('eventos', evento);
-  }
-
-  // Insertar entrada de evento (actividad)
-  static Future<int> insertEventEntry(Map<String, dynamic> entry) async {
-    final dbClient = await db;
-    try {
-      final id = await dbClient.insert('event_entries', entry);
-      // simple debug print
-      // ignore: avoid_print
-      print('Inserted event_entry id=$id entry=$entry');
-      return id;
-    } catch (e) {
-      // ignore: avoid_print
-      print('Error inserting event_entry: $e entry=$entry');
-      rethrow;
+    final uri = Uri.parse('${ApiConfig.baseUrl}/users/$userId');
+    final resp = await http
+        .get(uri, headers: ApiConfig.defaultHeaders)
+        .timeout(ApiConfig.requestTimeout);
+    if (resp.statusCode == 200) {
+      final row = jsonDecode(resp.body) as Map<String, dynamic>;
+      return (row['apodo'] as String?)?.trim();
     }
+    return null;
   }
 
-  // Obtener entradas por usuario (historial)
+  // Insertar evento -> POST /events
+  static Future<int> insertEvento(Map<String, dynamic> evento) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/events');
+    final resp = await http
+        .post(uri, headers: ApiConfig.defaultHeaders, body: jsonEncode(evento))
+        .timeout(ApiConfig.requestTimeout);
+    if (resp.statusCode == 201 || resp.statusCode == 200) {
+      final body = jsonDecode(resp.body);
+      return body['id'] as int? ?? 0;
+    }
+    throw Exception('Failed to insert evento: ${resp.statusCode} ${resp.body}');
+  }
+
+  // Insertar entrada de evento (actividad) -> POST /event_entries
+  static Future<int> insertEventEntry(Map<String, dynamic> entry) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/event_entries');
+    final resp = await http
+        .post(uri, headers: ApiConfig.defaultHeaders, body: jsonEncode(entry))
+        .timeout(ApiConfig.requestTimeout);
+    if (resp.statusCode == 201 || resp.statusCode == 200) {
+      final body = jsonDecode(resp.body);
+      return body['id'] as int? ?? 0;
+    }
+    throw Exception('Failed to insert event_entry: ${resp.statusCode} ${resp.body}');
+  }
+
+  // Obtener entradas por usuario (historial) -> GET /event_entries?user_id={}
   static Future<List<Map<String, dynamic>>> getEventEntries(int userId) async {
-    final dbClient = await db;
-    return await dbClient.query(
-      'event_entries',
-      where: 'user_id = ?',
-      whereArgs: [userId],
-      orderBy: 'fecha DESC, hora DESC',
-    );
+    final uri = Uri.parse('${ApiConfig.baseUrl}/event_entries?user_id=$userId');
+    final resp = await http
+        .get(uri, headers: ApiConfig.defaultHeaders)
+        .timeout(ApiConfig.requestTimeout);
+    if (resp.statusCode == 200) {
+      final body = jsonDecode(resp.body) as List<dynamic>;
+      return body.cast<Map<String, dynamic>>();
+    }
+    throw Exception('Failed to get event_entries: ${resp.statusCode} ${resp.body}');
   }
 
   // Obtener todas las tags usadas por un usuario
   static Future<List<String>> getTags(int userId) async {
-    final dbClient = await db;
-    final rows = await dbClient.rawQuery('SELECT DISTINCT tag FROM event_entries WHERE user_id = ? AND tag IS NOT NULL', [userId]);
-    return rows.map((r) => r['tag'] as String).toList();
+    final uri = Uri.parse('${ApiConfig.baseUrl}/event_entries/tags?user_id=$userId');
+    final resp = await http
+        .get(uri, headers: ApiConfig.defaultHeaders)
+        .timeout(ApiConfig.requestTimeout);
+    if (resp.statusCode == 200) {
+      final body = jsonDecode(resp.body) as List<dynamic>;
+      return body.cast<String>();
+    }
+    throw Exception('Failed to get tags: ${resp.statusCode} ${resp.body}');
   }
 
   // Obtener entradas filtradas por tag
   static Future<List<Map<String, dynamic>>> getEventEntriesByTag(int userId, String tag) async {
-    final dbClient = await db;
-    return await dbClient.query(
-      'event_entries',
-      where: 'user_id = ? AND tag = ?',
-      whereArgs: [userId, tag],
-      orderBy: 'fecha DESC, hora DESC',
-    );
+    final uri = Uri.parse('${ApiConfig.baseUrl}/event_entries?user_id=$userId&tag=${Uri.encodeQueryComponent(tag)}');
+    final resp = await http
+        .get(uri, headers: ApiConfig.defaultHeaders)
+        .timeout(ApiConfig.requestTimeout);
+    if (resp.statusCode == 200) {
+      final body = jsonDecode(resp.body) as List<dynamic>;
+      return body.cast<Map<String, dynamic>>();
+    }
+    throw Exception('Failed to get event_entries by tag: ${resp.statusCode} ${resp.body}');
   }
 
   // Obtener eventos por usuario
   static Future<List<Map<String, dynamic>>> getEventos(int userId) async {
-    final dbClient = await db;
-    return await dbClient.query('eventos', where: 'user_id = ?', whereArgs: [userId]);
+    final uri = Uri.parse('${ApiConfig.baseUrl}/events?user_id=$userId');
+    final resp = await http
+        .get(uri, headers: ApiConfig.defaultHeaders)
+        .timeout(ApiConfig.requestTimeout);
+    if (resp.statusCode == 200) {
+      final body = jsonDecode(resp.body) as List<dynamic>;
+      return body.cast<Map<String, dynamic>>();
+    }
+    throw Exception('Failed to get eventos: ${resp.statusCode} ${resp.body}');
   }
 
   // Convenience: insertar actividad (wrapper)
