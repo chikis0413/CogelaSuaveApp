@@ -12,172 +12,178 @@ class CalendarPageWidget extends StatefulWidget {
 class _CalendarPageWidgetState extends State<CalendarPageWidget> {
   DateTime _selectedDate = DateTime.now();
   DateTime _focusedDate = DateTime.now();
+  int _refreshKey = 0;
 
   @override
   Widget build(BuildContext context) {
     final dateStr = _selectedDate.toIso8601String().split('T').first;
 
-    return Column(
-      children: [
-        // Calendario mejorado
-        Container(
-          margin: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              // Header del calendario
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      const Color(0xFF1A73E8),
-                      const Color(0xFF4285F4),
+    return SingleChildScrollView(
+      key: ValueKey(_refreshKey),
+      child: Column(
+        children: [
+          // Calendario mejorado
+          Container(
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                // Header del calendario
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        const Color(0xFF1A73E8),
+                        const Color(0xFF4285F4),
+                      ],
+                    ),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _getMonthName(_focusedDate.month),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${_focusedDate.year}',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.chevron_left_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _focusedDate = DateTime(
+                                  _focusedDate.year,
+                                  _focusedDate.month - 1,
+                                );
+                              });
+                            },
+                          ),
+                          IconButton(
+                            icon: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.chevron_right_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _focusedDate = DateTime(
+                                  _focusedDate.year,
+                                  _focusedDate.month + 1,
+                                );
+                              });
+                            },
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(24),
-                    topRight: Radius.circular(24),
+                ),
+
+                // Calendario
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: _buildCustomCalendar(),
+                ),
+              ],
+            ),
+          ),
+
+          // Título de actividades del día
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A73E8),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _getMonthName(_focusedDate.month),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${_focusedDate.year}',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                      ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Resumen del ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF202124),
+                      letterSpacing: 0.2,
                     ),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.chevron_left_rounded,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _focusedDate = DateTime(
-                                _focusedDate.year,
-                                _focusedDate.month - 1,
-                              );
-                            });
-                          },
-                        ),
-                        IconButton(
-                          icon: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.chevron_right_rounded,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _focusedDate = DateTime(
-                                _focusedDate.year,
-                                _focusedDate.month + 1,
-                              );
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Calendario
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: _buildCustomCalendar(),
-              ),
-            ],
-          ),
-        ),
-
-        // Título de actividades del día
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          child: Row(
-            children: [
-              Container(
-                width: 4,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A73E8),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Resumen del ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF202124),
-                    letterSpacing: 0.2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
 
-        // Lista de actividades y emociones
-        Expanded(
-          child: FutureBuilder<Map<String, List<Map<String, dynamic>>>>(
+          // Lista de actividades y emociones
+          FutureBuilder<Map<String, List<Map<String, dynamic>>>>(
+            key: ValueKey('$dateStr-$_refreshKey'),
             future: _loadDayData(dateStr),
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
-                return Center(
-                  child: CircularProgressIndicator(
-                    color: const Color(0xFF1A73E8),
+                return Padding(
+                  padding: const EdgeInsets.all(40.0),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: const Color(0xFF1A73E8),
+                    ),
                   ),
                 );
               }
@@ -193,7 +199,7 @@ class _CalendarPageWidgetState extends State<CalendarPageWidget> {
                 return _buildEmptyState();
               }
 
-              return SingleChildScrollView(
+              return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,13 +218,14 @@ class _CalendarPageWidgetState extends State<CalendarPageWidget> {
                       const SizedBox(height: 12),
                       ...emotions.map((emotion) => _buildEmotionCard(emotion)),
                     ],
+                    const SizedBox(height: 16),
                   ],
                 ),
               );
             },
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -572,6 +579,7 @@ class _CalendarPageWidgetState extends State<CalendarPageWidget> {
               onTap: () {
                 setState(() {
                   _selectedDate = date;
+                  _refreshKey++; // Forzar actualización
                 });
               },
               child: Container(

@@ -82,28 +82,49 @@ class _ActivityEntryFormState extends State<ActivityEntryForm> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    final fecha = _date != null ? _date!.toIso8601String().split('T').first : '';
-    final hora = _time != null ? _time!.format(context) : '';
+    
+    try {
+      final fecha = _date != null ? _date!.toIso8601String().split('T').first : '';
+      final hora = _time != null ? _time!.format(context) : '';
 
-    await DBHelper.insertActividad(
-      userId: widget.userId,
-      nombre: _titleController.text,
-      fecha: fecha,
-      hora: hora,
-      descripcion: _descriptionController.text,
-      color: _color.value,
-      tag: null,
-    );
+      final id = await DBHelper.insertActividad(
+        userId: widget.userId,
+        nombre: _titleController.text,
+        fecha: fecha,
+        hora: hora,
+        descripcion: _descriptionController.text,
+        color: _color.value,
+        tag: null,
+      );
 
-    widget.onSaved?.call(true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Actividad guardada exitosamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        widget.onSaved?.call(true);
 
-    setState(() {
-      _titleController.clear();
-      _descriptionController.clear();
-      _date = null;
-      _time = null;
-      _color = Color(0xFF4285F4);
-    });
+        setState(() {
+          _titleController.clear();
+          _descriptionController.clear();
+          _date = null;
+          _time = null;
+          _color = const Color(0xFF4285F4);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override

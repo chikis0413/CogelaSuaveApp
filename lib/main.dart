@@ -371,29 +371,50 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
+  int _calendarRefreshKey = 0;
 
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
+    _updatePages();
+  }
+
+  void _updatePages() {
     _pages = [
-      CalendarPageWidget(userId: widget.userId),
+      CalendarPageWidget(key: ValueKey(_calendarRefreshKey), userId: widget.userId),
       ActivityEntryForm(
         userId: widget.userId,
         onSaved: (saved) {
           if (saved) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Actividad guardada'),
+                content: Text('Actividad guardada exitosamente'),
                 backgroundColor: Colors.green,
               ),
             );
-            setState(() => _selectedIndex = 0);
+            // Cambiar a la vista del calendario y refrescar
+            setState(() {
+              _selectedIndex = 0;
+              _calendarRefreshKey++;
+              _updatePages();
+            });
           }
         },
       ),
-      EmotionEntryPage(userId: widget.userId),
+      EmotionEntryPage(
+        userId: widget.userId,
+        onEmotionSaved: () {
+          // Refrescar calendario si estamos en esa vista
+          if (_selectedIndex == 0) {
+            setState(() {
+              _calendarRefreshKey++;
+              _updatePages();
+            });
+          }
+        },
+      ),
       ProfilePage(userId: widget.userId),
     ];
   }
@@ -430,7 +451,13 @@ class _HomePageState extends State<HomePage> {
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.of(context).popUntil((route) => route.isFirst);
+                // Cerrar el diálogo primero
+                Navigator.of(context).pop();
+                // Luego navegar al login y eliminar todas las rutas anteriores
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                  (route) => false,
+                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFEA4335),
@@ -516,8 +543,9 @@ class _HomePageState extends State<HomePage> {
 
 class EmotionEntryPage extends StatefulWidget {
   final int userId;
+  final VoidCallback? onEmotionSaved;
 
-  const EmotionEntryPage({super.key, required this.userId});
+  const EmotionEntryPage({super.key, required this.userId, this.onEmotionSaved});
 
   @override
   State<EmotionEntryPage> createState() => _EmotionEntryPageState();
@@ -533,7 +561,12 @@ class _EmotionEntryPageState extends State<EmotionEntryPage> {
         Expanded(
           child: _showHistory
               ? EmotionHistoryView(userId: widget.userId)
-              : EmotionEntryForm(userId: widget.userId),
+              : EmotionEntryForm(userId: widget.userId, onSaved: () {
+                  setState(() {
+                    _showHistory = false;
+                  });
+                  widget.onEmotionSaved?.call();
+                }),
         ),
         Container(
           padding: const EdgeInsets.all(16.0),
@@ -588,8 +621,9 @@ class _EmotionEntryPageState extends State<EmotionEntryPage> {
 
 class EmotionEntryForm extends StatefulWidget {
   final int userId;
+  final VoidCallback? onSaved;
 
-  const EmotionEntryForm({super.key, required this.userId});
+  const EmotionEntryForm({super.key, required this.userId, this.onSaved});
 
   @override
   State<EmotionEntryForm> createState() => _EmotionEntryFormState();
@@ -621,7 +655,7 @@ class _EmotionEntryFormState extends State<EmotionEntryForm> {
 
     try {
       final emotion = _emotions.firstWhere((e) => e['emoji'] == _selectedEmotion);
-      await DBHelper.insertEmotionEntry(
+      final id = await DBHelper.insertEmotionEntry(
         userId: widget.userId,
         emotion: emotion['label'],
         intensity: _intensityLevel,
@@ -636,6 +670,9 @@ class _EmotionEntryFormState extends State<EmotionEntryForm> {
             backgroundColor: Colors.green,
           ),
         );
+        
+        widget.onSaved?.call();
+        
         setState(() {
           _notesController.clear();
           _selectedEmotion = '😊';

@@ -155,10 +155,7 @@ class _ProfilePageState extends State<ProfilePage> {
         foregroundColor: const Color(0xFF1A73E8),
         elevation: 0,
         centerTitle: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        automaticallyImplyLeading: false, // Elimina la flecha de atrás
         actions: [
           if (!_isEditing && !_isLoading && _user != null)
             Container(
