@@ -2,9 +2,10 @@ import 'environment.dart';
 
 class ApiConfig {
   // URLs base según el entorno (ajusta si los dominios cambian por entorno).
-  static const String _devBaseUrl = 'http://172.17.2.47:8000';
-  static const String _stagingBaseUrl = 'http://172.17.2.47:8000';
-  static const String _prodBaseUrl = 'http://172.17.2.47:8000';
+  // Use the provided Railway-hosted Flask API for all environments by default.
+  static const String _devBaseUrl = 'http://flaskapiexample-production.up.railway.app/';
+  static const String _stagingBaseUrl = 'http://flaskapiexample-production.up.railway.app/';
+  static const String _prodBaseUrl = 'http://flaskapiexample-production.up.railway.app/';
 
   // URL base del backend según el entorno
   static String get baseUrl {
