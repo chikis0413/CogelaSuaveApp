@@ -1,10 +1,58 @@
 import 'dart:convert';
-
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
 
 import 'Config/api.dart';
 
 class DBHelper {
+  static Database? _database;
+
+  static Future<Database> get db async {
+    if (_database != null) return _database!;
+    _database = await initDB();
+    return _database!;
+  }
+
+  static Future<Database> initDB() async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, 'cogela_suave.db');
+    return await openDatabase(
+      path,
+      version: 2,
+      onCreate: _createDB,
+      onUpgrade: _upgradeDB,
+    );
+  }
+
+  static Future<void> _createDB(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE emotion_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        emotion TEXT NOT NULL,
+        intensity INTEGER NOT NULL,
+        notes TEXT,
+        timestamp TEXT NOT NULL
+      )
+    ''');
+  }
+
+  static Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS emotion_entries (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          emotion TEXT NOT NULL,
+          intensity INTEGER NOT NULL,
+          notes TEXT,
+          timestamp TEXT NOT NULL
+        )
+      ''');
+    }
+  }
+
   // Nota: Aunque el nombre del archivo y la clase siguen siendo `DBHelper`,
   // ahora funciona como cliente HTTP hacia el backend. Mantengo las mismas
   // firmas públicas mínimas para que el resto de la app cambie poco.
@@ -179,5 +227,36 @@ class DBHelper {
       'tag': 'emocion',
     };
     return await insertEventEntry(entry);
+  }
+
+  static Future<void> insertEmotionEntry({
+    required int userId,
+    required String emotion,
+    required int intensity,
+    required String notes,
+    required String timestamp,
+  }) async {
+    final database = await db;
+    await database.insert(
+      'emotion_entries',
+      {
+        'user_id': userId,
+        'emotion': emotion,
+        'intensity': intensity,
+        'notes': notes,
+        'timestamp': timestamp,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<List<Map<String, dynamic>>> getEmotionEntries(int userId) async {
+    final database = await db;
+    return await database.query(
+      'emotion_entries',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      orderBy: 'timestamp DESC',
+    );
   }
 }

@@ -1,59 +1,202 @@
 import 'dart:convert';
-
 import 'package:http/http.dart' as http;
-import 'package:cogela_suave/Config/api.dart';
+import '../config/api_config.dart';
+import '../models/user.dart';
 
 class ApiService {
-  ApiService._();
+  // Login
+  Future<Map<String, dynamic>> login(String apodo, String contrasena) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.loginEndpoint}'),
+        headers: ApiConfig.headers,
+        body: jsonEncode({
+          'apodo': apodo,
+          'contrasena': contrasena,
+        }),
+      );
 
-  static final client = http.Client();
+      final data = jsonDecode(response.body);
 
-  static Uri _buildUri(String path) {
-    final base = ApiConfig.baseUrl;
-    final normalized = base.endsWith('/') ? base : '$base/';
-    return Uri.parse('$normalized${path.startsWith('/') ? path.substring(1) : path}');
-  }
-
-  static Future<http.Response> get(String path, {Map<String, String>? headers}) async {
-    final uri = _buildUri(path);
-    final allHeaders = {...ApiConfig.defaultHeaders, if (headers != null) ...headers};
-    final resp = await client.get(uri, headers: allHeaders).timeout(ApiConfig.requestTimeout);
-    return resp;
-  }
-
-  static Future<http.Response> post(String path, Object? body, {Map<String, String>? headers}) async {
-    final uri = _buildUri(path);
-    final allHeaders = {...ApiConfig.defaultHeaders, if (headers != null) ...headers};
-    final payload = body == null ? null : jsonEncode(body);
-    final resp = await client.post(uri, headers: allHeaders, body: payload).timeout(ApiConfig.requestTimeout);
-    return resp;
-  }
-
-  static Future<http.Response> put(String path, Object? body, {Map<String, String>? headers}) async {
-    final uri = _buildUri(path);
-    final allHeaders = {...ApiConfig.defaultHeaders, if (headers != null) ...headers};
-    final payload = body == null ? null : jsonEncode(body);
-    final resp = await client.put(uri, headers: allHeaders, body: payload).timeout(ApiConfig.requestTimeout);
-    return resp;
-  }
-
-  static Future<http.Response> delete(String path, {Map<String, String>? headers}) async {
-    final uri = _buildUri(path);
-    final allHeaders = {...ApiConfig.defaultHeaders, if (headers != null) ...headers};
-    final resp = await client.delete(uri, headers: allHeaders).timeout(ApiConfig.requestTimeout);
-    return resp;
-  }
-
-  // Convenience example: login (adjust endpoint as your API expects)
-  static Future<Map<String, dynamic>?> login(String username, String password) async {
-    final resp = await post('auth/login', {'username': username, 'password': password});
-    if (resp.statusCode == 200) {
-      try {
-        return jsonDecode(resp.body) as Map<String, dynamic>;
-      } catch (e) {
-        return {'error': 'Invalid JSON response'};
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'user': User.fromJson(data['user']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Error desconocido',
+        };
       }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error de conexión: $e',
+      };
     }
-    return {'error': 'HTTP ${resp.statusCode}', 'body': resp.body};
+  }
+
+  // Crear usuario
+  Future<Map<String, dynamic>> createUser(Map<String, dynamic> userData) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usersEndpoint}'),
+        headers: ApiConfig.headers,
+        body: jsonEncode(userData),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 201) {
+        return {
+          'success': true,
+          'user': User.fromJson(data['user']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Error al crear usuario',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error de conexión: $e',
+      };
+    }
+  }
+
+  // Obtener todos los usuarios
+  Future<Map<String, dynamic>> getAllUsers() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usersEndpoint}'),
+        headers: ApiConfig.headers,
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        List<User> users = (data['users'] as List)
+            .map((userJson) => User.fromJson(userJson))
+            .toList();
+        return {
+          'success': true,
+          'users': users,
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'Error al obtener usuarios',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error de conexión: $e',
+      };
+    }
+  }
+
+  // Obtener usuario por ID
+  Future<Map<String, dynamic>> getUserById(int id) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usersEndpoint}/$id'),
+        headers: ApiConfig.headers,
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'user': User.fromJson(data['user']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Usuario no encontrado',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error de conexión: $e',
+      };
+    }
+  }
+
+  // Actualizar usuario
+  Future<Map<String, dynamic>> updateUser(int id, Map<String, dynamic> userData) async {
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usersEndpoint}/$id'),
+        headers: ApiConfig.headers,
+        body: jsonEncode(userData),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'user': User.fromJson(data['user']),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Error al actualizar usuario',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error de conexión: $e',
+      };
+    }
+  }
+
+  // Eliminar usuario
+  Future<Map<String, dynamic>> deleteUser(int id) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}${ApiConfig.usersEndpoint}/$id'),
+        headers: ApiConfig.headers,
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Usuario eliminado',
+        };
+      } else {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Error al eliminar usuario',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error de conexión: $e',
+      };
+    }
+  }
+
+  // Health check
+  Future<bool> healthCheck() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/'),
+        headers: ApiConfig.headers,
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
   }
 }

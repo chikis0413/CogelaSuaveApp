@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cogela_suave/db_helper.dart';
+import '../services/api_service.dart';
+import '../models/user.dart';
 
 class ProfilePage extends StatefulWidget {
   final int userId;
@@ -12,24 +13,24 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final _formKey = GlobalKey<FormState>();
-  final _nombreController = TextEditingController();
-  final _apellidoController = TextEditingController();
-  final _apodoController = TextEditingController();
-  final _carreraController = TextEditingController();
-  final _descripcionController = TextEditingController();
+  late TextEditingController _nombreController;
+  late TextEditingController _apellidoController;
+  late TextEditingController _carreraController;
+  late TextEditingController _descripcionController;
+  final _apiService = ApiService();
   
-  String email = '';
-  DateTime? fechaNacimiento;
+  User? _user;
   bool _isLoading = true;
   bool _isEditing = false;
   String _error = '';
-  String _successMessage = '';
-
-  final RegExp nombreApellidoRegExp = RegExp(r'^[A-Za-zÁÉÍÓÚáéíóú ]+$');
 
   @override
   void initState() {
     super.initState();
+    _nombreController = TextEditingController();
+    _apellidoController = TextEditingController();
+    _carreraController = TextEditingController();
+    _descripcionController = TextEditingController();
     _loadUserData();
   }
 
@@ -37,154 +38,103 @@ class _ProfilePageState extends State<ProfilePage> {
   void dispose() {
     _nombreController.dispose();
     _apellidoController.dispose();
-    _apodoController.dispose();
     _carreraController.dispose();
     _descripcionController.dispose();
     super.dispose();
   }
 
   Future<void> _loadUserData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _error = '';
-      });
+    setState(() {
+      _isLoading = true;
+      _error = '';
+    });
 
-      final db = await DBHelper.db;
-      final result = await db.query(
-        'usuarios',
-        where: 'id = ?',
-        whereArgs: [widget.userId],
-      );
+    final result = await _apiService.getUserById(widget.userId);
 
-      if (result.isNotEmpty) {
-        final userData = result.first;
-        setState(() {
-          _nombreController.text = userData['nombre'] as String? ?? '';
-          _apellidoController.text = userData['apellido'] as String? ?? '';
-          _apodoController.text = userData['apodo'] as String? ?? '';
-          _carreraController.text = userData['carrera'] as String? ?? '';
-          _descripcionController.text = userData['descripcion_personal'] as String? ?? '';
-          email = userData['email'] as String? ?? '';
-          
-          if (userData['fecha_nacimiento'] != null && userData['fecha_nacimiento'] != '') {
-            try {
-              fechaNacimiento = DateTime.parse(userData['fecha_nacimiento'] as String);
-            } catch (e) {
-              fechaNacimiento = null;
-            }
-          }
-        });
-      } else {
-        setState(() {
-          _error = 'Usuario no encontrado';
-        });
-      }
-    } catch (e) {
+    if (result['success']) {
       setState(() {
-        _error = 'Error al cargar los datos: $e';
+        _user = result['user'];
+        _nombreController.text = _user!.nombre ?? '';
+        _apellidoController.text = _user!.apellido ?? '';
+        _carreraController.text = _user!.carrera ?? '';
+        _descripcionController.text = _user!.descripcionPersonal ?? '';
+        _isLoading = false;
       });
-    } finally {
+    } else {
       setState(() {
+        _error = result['message'];
         _isLoading = false;
       });
     }
   }
 
-  Future<void> _updateUserData() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+  Future<void> _updateProfile() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isLoading = true);
 
-    try {
-      setState(() {
-        _error = '';
-        _successMessage = '';
-      });
+      final userData = {
+        'nombre': _nombreController.text,
+        'apellido': _apellidoController.text,
+        'carrera': _carreraController.text,
+        'descripcion_personal': _descripcionController.text,
+      };
 
-      final db = await DBHelper.db;
-      await db.update(
-        'usuarios',
-        {
-          'nombre': _nombreController.text.trim(),
-          'apellido': _apellidoController.text.trim(),
-          'apodo': _apodoController.text.trim(),
-          'carrera': _carreraController.text.trim(),
-          'descripcion_personal': _descripcionController.text.trim(),
-        },
-        where: 'id = ?',
-        whereArgs: [widget.userId],
-      );
+      final result = await _apiService.updateUser(widget.userId, userData);
 
-      setState(() {
-        _isEditing = false;
-        _successMessage = 'Perfil actualizado correctamente';
-      });
+      setState(() => _isLoading = false);
 
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) {
-          setState(() {
-            _successMessage = '';
-          });
-        }
-      });
-    } catch (e) {
-      setState(() {
-        _error = 'Error al actualizar el perfil: $e';
-      });
+      if (!mounted) return;
+
+      if (result['success']) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Perfil actualizado exitosamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        setState(() => _isEditing = false);
+        _loadUserData();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  void _cancelEdit() {
-    setState(() {
-      _isEditing = false;
-      _error = '';
-      _successMessage = '';
-    });
-    _loadUserData();
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    String? Function(String?)? validator,
-    int maxLines = 1,
-  }) {
-    return TextFormField(
-      controller: controller,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(
-          color: _isEditing ? const Color(0xFF1A73E8) : Colors.grey[600],
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF1A73E8), width: 2),
-        ),
-        disabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey[200]!),
-        ),
-        filled: true,
-        fillColor: _isEditing ? Colors.white : Colors.grey[50],
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: 16, 
-          vertical: maxLines > 1 ? 16 : 16,
-        ),
+  Widget _buildInfoRow(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.deepPurple),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-      enabled: _isEditing,
-      validator: validator,
     );
   }
 
@@ -210,7 +160,7 @@ class _ProfilePageState extends State<ProfilePage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          if (!_isEditing && !_isLoading)
+          if (!_isEditing && !_isLoading && _user != null)
             Container(
               margin: const EdgeInsets.only(right: 16),
               child: IconButton(
@@ -229,7 +179,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   setState(() {
                     _isEditing = true;
                     _error = '';
-                    _successMessage = '';
                   });
                 },
               ),
@@ -264,137 +213,132 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
             )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header con avatar
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 32),
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF1A73E8),
-                            Color(0xFF4285F4),
-                          ],
+          : _error.isNotEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(_error, style: const TextStyle(fontSize: 16)),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _loadUserData,
+                        child: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        const CircleAvatar(
+                          radius: 60,
+                          child: Icon(Icons.person, size: 60),
                         ),
-                        borderRadius: BorderRadius.circular(28),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF1A73E8).withOpacity(0.3),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child: const Icon(
-                              Icons.person_outline,
-                              size: 48,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            _isEditing ? 'Editando Perfil' : 'Mi Información Personal',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              letterSpacing: 0.15,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _isEditing 
-                                ? 'Actualiza tu información personal' 
-                                : 'Consulta y modifica tus datos',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white.withOpacity(0.9),
-                              letterSpacing: 0.1,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Contenedor principal con el formulario
-                    Container(
-                      padding: const EdgeInsets.all(28),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 20,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                        border: Border.all(
-                          color: Colors.grey.withOpacity(0.1),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Mensajes de error y éxito
-                          if (_error.isNotEmpty)
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 24),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEA4335).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: const Color(0xFFEA4335).withOpacity(0.3),
-                                  ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFEA4335).withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(
-                                      Icons.error_outline,
-                                      color: Color(0xFFEA4335),
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      _error,
-                                      style: const TextStyle(
-                                        color: Color(0xFFEA4335),
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
+                        const SizedBox(height: 24),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildInfoRow('Usuario', _user?.apodo ?? '', Icons.account_circle),
+                                const Divider(),
+                                _buildInfoRow('Email', _user?.email ?? '', Icons.email),
+                                if (_user?.fechaNacimiento != null) ...[
+                                  const Divider(),
+                                  _buildInfoRow('Fecha de Nacimiento', _user!.fechaNacimiento!, Icons.cake),
                                 ],
-                              ),
+                              ],
                             ),
-
-                          if (_successMessage.isNotEmpty)
-                            Container(
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _nombreController,
+                          enabled: _isEditing,
+                          decoration: InputDecoration(
+                            labelText: 'Nombre',
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.person),
+                            filled: !_isEditing,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _apellidoController,
+                          enabled: _isEditing,
+                          decoration: InputDecoration(
+                            labelText: 'Apellido',
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.person_outline),
+                            filled: !_isEditing,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _carreraController,
+                          enabled: _isEditing,
+                          decoration: InputDecoration(
+                            labelText: 'Carrera',
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.school),
+                            filled: !_isEditing,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _descripcionController,
+                          enabled: _isEditing,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            labelText: 'Descripción Personal',
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.description),
+                            filled: !_isEditing,
+                          ),
+                        ),
+                        if (_isEditing) ...[
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _isEditing = false;
+                                      _loadUserData();
+                                    });
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.grey,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text('Cancelar'),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: _updateProfile,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.deepPurple,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text('Guardar'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+    );
+  }
+}
